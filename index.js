@@ -54,24 +54,30 @@ const instaPosts = `https://graph.instagram.com/me/media?fields=id,media_type,me
 // Instagram API
 const instaPostsLimit10 = `https://graph.instagram.com/me/media?fields=id,media_type,media_url,caption,timestamp,thumbnail_url,permalink,children{fields=id,media_url,thumbnail_url,permalink}&limit=10&access_token=${process.env.INSTAGRAM_TOKEN}`
 
+const followersChanal = process.env.FOLLOWERS_CHANAL
 
 //Ссылка на следующие посты из Instagram API
 let nextInstaPostsUrl = instaPostsLimit10;
+
+let globalUsername = '';
 
 // Обработка команд бота
 bot.on('message', async (msg) => {
     const messageId = msg.message_id;
     const chatId = msg.chat.id;
     const text = msg.text;
+    const usernameComand = msg.from.username;
+
+    globalUsername = usernameComand
 
     // Обработка команды start
     if (text === "/start") {
         try {
-            await bot.sendPhoto(chatId, 'https://t.me/teemonvideoeditor/30', {
+            await bot.sendPhoto(chatId, `${process.env.START_PHOTO}`, {
                 disable_notification: true,
                 protect_content: true
             });
-            await bot.sendMessage(chatId, `Привет ${msg.from.first_name}!💋\nМеня зовут Юля, я являюсь создателем бренда украшений\nCherry Story.\n\n Приглашаю Вас подписаться на мою страницу в Instagram, где Вы сможете насладиться множеством красивых и уникальных украшений от бренда Cherry Story. Будьте в курсе всех новых коллекций, которые мы предлагаем.\n Окунитесь в мир элегантности и стиля! 😊✨`, {
+            await bot.sendMessage(chatId, `Привет ${usernameComand}!💋\nМеня зовут Юля, я являюсь создателем бренда украшений\nCherry Story.\n\n Приглашаю Вас подписаться на мою страницу в Instagram, где Вы сможете насладиться множеством красивых и уникальных украшений от бренда Cherry Story. Будьте в курсе всех новых коллекций, которые мы предлагаем.\n Окунитесь в мир элегантности и стиля! 😊✨`, {
                 disable_notification: true,
                 reply_markup: {
                     resize_keyboard: true,
@@ -80,6 +86,7 @@ bot.on('message', async (msg) => {
                     ]
                 }
             });
+            await bot.sendMessage(followersChanal, `@${usernameComand} начал пользоваться CherryStoryBot`)
             await bot.deleteMessage(chatId,messageId)
             setTimeout(async () => {
                 await bot.sendMessage(chatId, ` Раздел "Меню" ↙️ содержит список всех доступных для использования команд.`, {disable_notification: true})
@@ -92,7 +99,7 @@ bot.on('message', async (msg) => {
     // Обработка команды categories
     if (text === "/categories") {
         try {
-            await bot.sendMessage(chatId, `${msg.from.first_name},\nкатегории украшений, изготовленных с заботой и любовью для вас.💕💫`, {
+            await bot.sendMessage(chatId, `${usernameComand},\nкатегории украшений, изготовленных с заботой и любовью для вас.💕💫`, {
                 disable_notification: true,
                 reply_markup: {
                     inline_keyboard: [
@@ -103,6 +110,7 @@ bot.on('message', async (msg) => {
                     ]
                 }
             });
+            await bot.sendMessage(followersChanal, `@${usernameComand} выбирает категорию`,{disable_notification: true})
             await bot.deleteMessage(chatId,messageId)
         } catch (e) {
             console.log(e.message)
@@ -138,7 +146,7 @@ bot.on('message', async (msg) => {
 
             setTimeout(async () => {
                 await bot.sendMessage(chatId, 'Если у Вас остались вопросы, не стесняйтесь обращаться ко мне в чате @cherry_story.', {disable_notification: true})
-            }, 10000)
+            }, 7000)
             await bot.deleteMessage(chatId,messageId)
         } catch (e) {
             console.log(e.message)
@@ -155,7 +163,8 @@ bot.on('message', async (msg) => {
                         [{text: "10 последних постов из Instagram", callback_data:'get_posts'}]
                     ]
                 }
-            })
+            });
+            await bot.sendMessage(followersChanal, `@${usernameComand} хочет посмотреть посты из Instagram`,{disable_notification: true})
             await bot.deleteMessage(chatId,messageId)
         } catch (e) {
             console.log(e.message);
@@ -168,6 +177,9 @@ bot.on('message', async (msg) => {
 bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     const callbackData = query.data;
+    const usernameQuery = query.from.username
+
+    globalUsername = usernameQuery
 
     // Обработка события callbackData === 'get_posts'
     if (callbackData === 'get_posts') {
@@ -194,7 +206,8 @@ bot.on('callback_query', async (query) => {
             }
         } catch (e) {
             console.log(e.message);
-            await bot.sendMessage(chatId, "Упс... Instagram, в отличии от меня, не хочет работать. Попробуйте ещё раз!😉️️");
+            await bot.sendMessage(followersChanal, `У @${usernameQuery} не получилось посмотреть первые 10 постов из Instagram`,{disable_notification: true})
+            await bot.sendMessage(chatId, "Упс... Instagram, в отличии от меня, не хочет работать. \n️️️️️ Попробуйте ещё раз!😉️️");
         }
     }
 
@@ -223,7 +236,8 @@ bot.on('callback_query', async (query) => {
             }
         } catch (e) {
             console.log(e.message);
-            await bot.sendMessage(chatId, "Упс... Instagram, в отличии от меня, не хочет работать. Попробуйте ещё раз!😉️️")
+            await bot.sendMessage(followersChanal, `У @${usernameQuery} не получилось посмотреть последующие посты из Instagram`,{disable_notification: true})
+            await bot.sendMessage(chatId, "Упс... Instagram, в отличии от меня, не хочет работать..️\n️️️️️ Попробуйте ещё раз!😉️️");
         }
     }
 
@@ -333,9 +347,17 @@ async function fetchAndSendCategoryPosts(bot, chatId, hashtag) {
         for (let chunk of chunks) {
             await sendMedia(bot, chatId, chunk);
         }
-        await bot.sendMessage(chatId, 'Больше украшений по выбранной категории Вы найдете на моей странице в Instagram');
+
+
+        await bot.sendMessage(chatId, 'Больше украшений по выбранной категории Вы найдете на моей странице в Instagram',{disable_notification: true});
+        setTimeout(async () => {
+            await bot.sendMessage(chatId, 'Помните, что мода - это отличный способ показать ваше внутреннее "я" миру. Будьте себе верны и не бойтесь выделяться. С нами вы сможете создать уникальные образы, которые будут олицетворять вашу индивидуальность.', {disable_notification: true})
+        }, 3000)
+        await bot.sendMessage(followersChanal, `@${globalUsername} смотрит: ${hashtag}`,{disable_notification: true});
     } catch (e) {
         console.log(e.message);
+        await bot.sendMessage(followersChanal, `У @${globalUsername} не получилось посмотреть категорию ${hashtag}`,{disable_notification: true})
+        await bot.sendMessage(chatId, "Упс... Instagram, в отличии от меня, не хочет работать. ️️️️️\n Попробуйте ещё раз!😉️️");
     }
 }
 
