@@ -1,52 +1,10 @@
-require('dotenv').config()
 
+require("dotenv").config()
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
-const fs = require('fs');
-
-// Функция для обновления Instagram-токена
-const refreshAccessToken = async () => {
-    try {
-        const url = `https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=${process.env.INSTAGRAM_TOKEN}`;
-        const response = await axios.get(url);
-
-        // Обновляем значение токена в переменных окружения
-        process.env.INSTAGRAM_TOKEN = response.data.access_token;
-
-        // Обновляем переменную INSTAGRAM_TOKEN_TIMESTAMP с текущим временем в секундах
-        const currentTimeInSeconds = Math.floor(Date.now() / 1000);
-        process.env.INSTAGRAM_TOKEN_TIMESTAMP = currentTimeInSeconds.toString();
-
-        // Записываем новые значения в файл .env
-        const envData = Object.keys(process.env).reduce((acc, key) => {
-            return `${acc}${key}=${process.env[key]}\n`;
-        }, '');
-        fs.writeFileSync('.env', envData);
-
-        console.log('INSTAGRAM_TOKEN and TIMESTAMP have been successfully updated!');
-    } catch (error) {
-        console.error('An error occurred while updating the token:', error);
-    }
-};
-
-// Функция для проверки и обновления Instagram-токена, если это необходимо
-const checkAndRefreshTokenIfNeeded = async () => {
-    const currentTimeInSeconds = Math.floor(Date.now() / 1000);
-    const tokenTimestamp = parseInt(process.env.INSTAGRAM_TOKEN_TIMESTAMP);
-
-    // Проверяем, если прошло более 50 дней (50 * 24 * 60 * 60 секунд) с момента последнего обновления токена
-    if (currentTimeInSeconds - tokenTimestamp > 50 * 24 * 60 * 60) {
-        await refreshAccessToken();
-    } else {
-        console.log('The token is still valid, no update required.');
-    }
-};
 
 // Обработка команд бота
 const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, {polling: true});
-
-//Ссылка на основную страницу аккаунта Instagram
-const instagramLink = 'https://www.instagram.com/_cherry_story_/';
 
 // Instagram API
 const instaPosts = `https://graph.instagram.com/me/media?fields=id,media_type,media_url,caption,timestamp,thumbnail_url,permalink,children{fields=id,media_url,thumbnail_url,permalink}&limit=1000&access_token=${process.env.INSTAGRAM_TOKEN}`
@@ -54,122 +12,105 @@ const instaPosts = `https://graph.instagram.com/me/media?fields=id,media_type,me
 // Instagram API
 const instaPostsLimit10 = `https://graph.instagram.com/me/media?fields=id,media_type,media_url,caption,timestamp,thumbnail_url,permalink,children{fields=id,media_url,thumbnail_url,permalink}&limit=10&access_token=${process.env.INSTAGRAM_TOKEN}`
 
-const followersChanal = process.env.FOLLOWERS_CHANAL
+// Ссылка на канал пользователей
+const followersChannel = process.env.FOLLOWERS_CHANNEL;
+
+// Функции команд бота
+const {
+    handleStartCommand,
+    handleCategoriesCommand,
+    handlePayCommand,
+    handleCareCommand,
+    handlePostsCommand,
+    handleQuantityUsers
+} = require('./botCommands');
+
+//Функции отправки напомнинаний
+const {
+    happyNY,
+    march,
+    reminderWinter,
+    reminderSpring,
+    reminderSummer,
+    reminderAutumn
+} = require('./newsLetter');
+
+
+// Кейсы запросов
+const GET_POSTS = 'get_posts';
+const GET_NEXT_POSTS = 'get_next_posts';
+const GET_NEXT_CATEGORY_POSTS = 'get_next_category_posts';
+const CATEGORY_MAP = {
+    'get_rings': 'кольцо',
+    'get_earrings': 'серьги',
+    'get_chokers': 'чокер',
+    'get_necklaces': 'колье',
+    'get_chains': 'цепь',
+    'get_bracelets': 'браслет',
+    'get_anklets': 'анклет'
+};
 
 //Ссылка на следующие посты из Instagram API
 let nextInstaPostsUrl = instaPostsLimit10;
+//Ссылка на следующие посты по выбранной категории
+let nextCategoryPostsUrl = instaPosts;
 
+//Username для отправки в чат пользователей
 let globalUsername = '';
+// callbackData соответствующая нажатой кнопке с категорией
+let buttonCallbackData = '';
+
+// Массив для хранения всех полученных медиафайлов
+let allMediaUrls = [];
+// Массив для хранения всех полученных медиафайлов по выбранной категории
+let allMediaCategoryUrls = [];
+
+let count = 0;
 
 // Обработка команд бота
 bot.on('message', async (msg) => {
-    const messageId = msg.message_id;
     const chatId = msg.chat.id;
     const text = msg.text;
-    const usernameComand = msg.from.username;
-
-    globalUsername = usernameComand
-
-    // Обработка команды start
-    if (text === "/start") {
-        try {
-            await bot.sendPhoto(chatId, `${process.env.START_PHOTO}`, {
-                disable_notification: true,
-                protect_content: true
-            });
-            await bot.sendMessage(chatId, `Привет ${usernameComand}!💋\nМеня зовут Юля, я являюсь создателем бренда украшений\nCherry Story.\n\n Приглашаю Вас подписаться на мою страницу в Instagram, где Вы сможете насладиться множеством красивых и уникальных украшений от бренда Cherry Story. Будьте в курсе всех новых коллекций, которые мы предлагаем.\n Окунитесь в мир элегантности и стиля! 😊✨`, {
-                disable_notification: true,
-                reply_markup: {
-                    resize_keyboard: true,
-                    keyboard: [
-                        [{text: "Instagram Cherry Story", web_app: {url: instagramLink}}]
-                    ]
-                }
-            });
-            await bot.sendMessage(followersChanal, `@${usernameComand} начал пользоваться CherryStoryBot`)
-            await bot.deleteMessage(chatId,messageId)
-            setTimeout(async () => {
-                await bot.sendMessage(chatId, ` Раздел "Меню" ↙️ содержит список всех доступных для использования команд.`, {disable_notification: true})
-            }, 5000)
-        } catch (e) {
-            console.log(e.message)
+    const username = msg.from.username ?? 'anonymous user';
+    const {checkAndRefreshTokenIfNeeded} = require('./refreshInstaToken');
+    try {
+        switch (text) {
+            case '/start':
+                await handleStartCommand(bot, msg, chatId);
+                await checkAndRefreshTokenIfNeeded(bot, msg);
+                globalUsername = username;
+                count++;
+                await reminderWinter(bot, msg);
+                await happyNY(bot, msg);
+                await march(bot, msg);
+                await reminderSpring(bot, msg);
+                await reminderSummer(bot, msg);
+                await reminderAutumn(bot, msg);
+                break;
+            case '/categories':
+                await handleCategoriesCommand(bot, msg);
+                break;
+            case '/pay':
+                await handlePayCommand(bot, msg);
+                break;
+            case '/care':
+                await handleCareCommand(bot, msg);
+                break;
+            case '/posts':
+                await handlePostsCommand(bot, msg);
+                break;
+            case '/how many users':
+                await handleQuantityUsers(bot, count);
+                break;
+            default:
+                // await bot.forwardMessage(myId, chatId, messageId);
+                await bot.sendMessage(chatId, "Я всего лишь бот и знаю только команды.😔️️️️️️\nПо всем вопросам пиши моей госпоже @cherry_story\n Вообще, Юля мне не госпожа, но ей нравится, когда я её так называю.", {disable_notification: true});
+                break;
         }
-    }
-
-    // Обработка команды categories
-    if (text === "/categories") {
-        try {
-            await bot.sendMessage(chatId, `${usernameComand},\nкатегории украшений, изготовленных с заботой и любовью для вас.💕💫`, {
-                disable_notification: true,
-                reply_markup: {
-                    inline_keyboard: [
-                        [{text: "Кольца", callback_data: 'get_rings'}, {text: "Серьги", callback_data: 'get_earrings'}],
-                        [{text: "Чокеры", callback_data: 'get_chokers'}, {text: "Колье", callback_data: 'get_necklaces'}, {text: "Цепи", callback_data: 'get_chains'},],
-                        [{text: "Браслеты", callback_data: 'get_bracelets'}, {text: "Анклеты", callback_data: 'get_anclets'}],
-                            [{text: "10 последних постов из Instagram", callback_data:'get_posts'}]
-                    ]
-                }
-            });
-            await bot.sendMessage(followersChanal, `@${usernameComand} выбирает категорию`,{disable_notification: true})
-            await bot.deleteMessage(chatId,messageId)
-        } catch (e) {
-            console.log(e.message)
-        }
-    }
-
-    // Обработка команды pay
-    if (text === '/pay') {
-        try {
-            await bot.sendMessage(chatId, 'Получить информацию о наличии товара, вариантах доставки и оплаты Вы можете, написав мне @cherry_story', {disable_notification: true})
-            await bot.deleteMessage(chatId,messageId)
-        } catch (e) {
-            console.log(e.message)
-        }
-    }
-
-    // Обработка команды care
-    if (text === '/care') {
-        try {
-            await bot.sendMessage(chatId, 'Храните украшения в индивидуальной упаковке, раздельно друг от друга.🎁\n' +
-                '\n' +
-                ' Снимайте украшения перед контактом с водой, нанесением кремов и парфюма.💦\n' +
-                '\n' +
-                ' После ношения тщательно протирайте украшения мягкой тканевой салфеткой.🧺\n' +
-                '\n' +
-                ' Рекомендуется снимать украшения перед сном.🌙\n' +
-                '\n' +
-                ' Не рекомендуется носить украшения во время занятий спортом или физических упражнений, чтобы избежать повреждений или потери.⛔️', {disable_notification: true})
-
-            setTimeout(async () => {
-                await bot.sendMessage(chatId, 'Эти рекомендации помогут Вам дольше наслаждаться своими украшениями и сохранить их привлекательный внешний вид.💍✨', {disable_notification: true})
-            }, 5000)
-
-            setTimeout(async () => {
-                await bot.sendMessage(chatId, 'Если у Вас остались вопросы, не стесняйтесь обращаться ко мне в чате @cherry_story.', {disable_notification: true})
-            }, 7000)
-            await bot.deleteMessage(chatId,messageId)
-        } catch (e) {
-            console.log(e.message)
-        }
-    }
-
-    //Обработка команды posts
-    if (text === "/posts"){
-        try {
-            await bot.sendMessage(chatId, "Этот бот может отправить Вам фото из моих постов в Instagram, без использования VPN", {
-                disable_notification: true,
-                reply_markup: {
-                    inline_keyboard: [
-                        [{text: "10 последних постов из Instagram", callback_data:'get_posts'}]
-                    ]
-                }
-            });
-            await bot.sendMessage(followersChanal, `@${usernameComand} хочет посмотреть посты из Instagram`,{disable_notification: true})
-            await bot.deleteMessage(chatId,messageId)
-        } catch (e) {
-            console.log(e.message);
-
-        }
+    } catch (e) {
+        console.log(`в обработке message ошибка:${e.message}`);
+        await bot.sendMessage(followersChannel, `У @${globalUsername} не работает обработка commands ошибка:${e.message}`)
+        await bot.sendMessage(chatId, 'Упс! Что-то пошло не так. Пожалуйста, попробуйте еще раз.');
     }
 });
 
@@ -177,219 +118,355 @@ bot.on('message', async (msg) => {
 bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     const callbackData = query.data;
-    const usernameQuery = query.from.username
 
-    globalUsername = usernameQuery
-
-    // Обработка события callbackData === 'get_posts'
-    if (callbackData === 'get_posts') {
-        try {
-            const response = await axios.get(instaPostsLimit10);
-            const {data} = response.data;
-            const mediaUrls = data.map(item => item.media_url);
-            const chunks = chunkArray(mediaUrls, 10);
-            for (let chunk of chunks) {
-                await sendMedia(bot, chatId, chunk);
-            }
-            if (response.data.paging && response.data.paging.next) {
-                // Если есть следующая страница, обновляем URL для следующих постов
-                nextInstaPostsUrl = response.data.paging.next;
-                // После отправки первых 10 постов, добавляем кнопку "Ещё 10 постов"
-                await bot.sendMessage(chatId, "👇Здесь ещё 10 постов👇", {
-                    disable_notification: true,
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: "Ещё 10 постов", callback_data: 'get_next_posts' }] // Изменил на 'get_next_posts' чтобы показать следующие 10 постов
-                        ]
-                    }
-                });
-            }
-        } catch (e) {
-            console.log(e.message);
-            await bot.sendMessage(followersChanal, `У @${usernameQuery} не получилось посмотреть первые 10 постов из Instagram`,{disable_notification: true})
-            await bot.sendMessage(chatId, "Упс... Instagram, в отличии от меня, не хочет работать. \n️️️️️ Попробуйте ещё раз!😉️️");
+    try {
+        switch (callbackData) {
+            case GET_POSTS:
+                await handleGetPosts(chatId);
+                break;
+            case GET_NEXT_POSTS:
+                await handleGetNextPosts(chatId);
+                break;
+            case GET_NEXT_CATEGORY_POSTS:
+                await handleNextCategoryPosts(chatId, buttonCallbackData)
+                break;
+            default:
+                if (callbackData in CATEGORY_MAP) {
+                    await handleCategory(chatId, CATEGORY_MAP[callbackData]);
+                    buttonCallbackData = CATEGORY_MAP[callbackData];
+                }
+                break;
         }
-    }
-
-    // Обработка события callbackData === 'get_next_posts'
-    if (callbackData === 'get_next_posts') {
-        try {
-            const response = await axios.get(nextInstaPostsUrl);
-            const { data } = response.data;
-            const mediaUrls = data.map(item => item.media_url);
-            const chunks = chunkArray(mediaUrls, 10);
-            for (let chunk of chunks) {
-                await sendMedia(bot, chatId, chunk);
-            }
-            if (response.data.paging && response.data.paging.next) {
-                // Если есть следующая страница, обновляем URL для следующих постов
-                nextInstaPostsUrl = response.data.paging.next;
-                // После отправки первых 10 постов, добавляем кнопку "Ещё 10 постов"
-                await bot.sendMessage(chatId, "Если Вы нашли идеальное украшение для себя, просто отправьте мне фото этого украшения @cherry_story. Буду рада предоставить дополнительную информацию.🌸", {
-                    disable_notification: true,
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: "Ещё 10 постов", callback_data: 'get_next_posts' }] // Изменил на 'get_next_posts' чтобы показать следующие 10 постов
-                        ]
-                    }
-                });
-            }
-        } catch (e) {
-            console.log(e.message);
-            await bot.sendMessage(followersChanal, `У @${usernameQuery} не получилось посмотреть последующие посты из Instagram`,{disable_notification: true})
-            await bot.sendMessage(chatId, "Упс... Instagram, в отличии от меня, не хочет работать..️\n️️️️️ Попробуйте ещё раз!😉️️");
-        }
-    }
-
-
-    // Обработка события callbackData === 'get_rings'
-    if (callbackData === 'get_rings') {
-        try {
-            await sendRingPosts(bot, chatId);
-        } catch (e) {
-            console.log(e.message);
-        }
-    }
-    // Обработка события callbackData === 'get_earrings'
-    if (callbackData === 'get_earrings') {
-        try {
-            await sendEarringsPosts(bot, chatId);
-        } catch (e) {
-            console.log(e.message);
-        }
-    }
-    // Обработка события callbackData === 'get_chokers'
-    if (callbackData === 'get_chokers') {
-        try {
-            await sendChokerPosts(bot, chatId);
-        } catch (e) {
-            console.log(e.message);
-        }
-    }
-    // Обработка события callbackData === 'get_necklace'
-    if (callbackData === 'get_necklaces') {
-        try {
-            await sendNecklacePosts(bot, chatId);
-        } catch (e) {
-            console.log(e.message);
-        }
-    }
-    // Обработка события callbackData === 'get_chains'
-    if (callbackData === 'get_chains') {
-        try {
-            await sendChainPosts(bot, chatId);
-        } catch (e) {
-            console.log(e.message);
-        }
-    }
-    // Обработка события callbackData === 'get_bracelets'
-    if (callbackData === 'get_bracelets') {
-        try {
-            await sendBraceletPosts(bot, chatId);
-        } catch (e) {
-            console.log(e.message);
-        }
-    }
-    // Обработка события callbackData === 'get_anclets'
-    if (callbackData === 'get_anclets') {
-        try {
-            await sendAncletPosts(bot, chatId);
-        } catch (e) {
-            console.log(e.message);
-        }
+    } catch (e) {
+        console.error(`в обработке callback_query ошибка:${e.message}`);
+        await bot.sendMessage(followersChannel, `У @${globalUsername} не работает обработка commands ошибка:${e.message}`);
+        await bot.sendMessage(chatId, 'Упс! Что-то пошло не так. Пожалуйста, попробуйте еще раз.');
     }
 });
 
-// Функция для отправки медиафайлов в чат
-async function sendMedia(bot, chatId, mediaUrls) {
-    const media = [];
-    for (let url of mediaUrls) {
-        const mediaObject = {
-            type: 'photo',
-            media: url
-        };
-        media.push(mediaObject);
-    }
-    await bot.sendMediaGroup(chatId, media, {
-        disable_notification: true,
-    });
-}
-
-// Разбиваем URL-адреса на группы по 10
-function chunkArray(array, size) {
-    const result = [];
-    for (let i = 0; i < array.length; i += size) {
-        result.push(array.slice(i, i + size));
-    }
-    return result;
-}
-// Функция для отправки медиафайлов в чат по хэштегу
-async function fetchAndSendCategoryPosts(bot, chatId, hashtag) {
+//Функция обработки callback === GET_POSTS
+async function handleGetPosts(chatId) {
     try {
-        // Получаем данные с Instagram API
-        const response = await axios.get(instaPosts);
-        const { data } = response.data;
+        await bot.sendChatAction(chatId, 'upload_photo')
+        const response = await axios.get(instaPostsLimit10);
+        const {data} = response.data;
 
-        // Фильтруем посты, оставляем только те, у которых в поле "caption" есть указанный хэштег
-        const categoryPosts = data.filter((item) => {
-            const caption = item.caption ? item.caption.toLowerCase() : '';
-            return caption.includes(hashtag);
-        });
+        for (let item of data) {
+            if (item.media_type === 'CAROUSEL_ALBUM' && item.children && item.children.data.length > 0) {
+                // Если это карусель, добавляем все изображения из карусели
+                allMediaUrls.push(...item.children.data.map(child => child.media_url));
+            } else {
+                // Иначе добавляем изображение
+                allMediaUrls.push(item.media_url);
+            }
+        }
+        console.log(`было:${allMediaUrls.length}`)
 
-        // Ограничиваем количество постов до 10
-        const first10CategoryPosts = categoryPosts.slice(0, 10);
-
-        // Извлекаем URL-адреса медиафайлов
-        const mediaUrls = first10CategoryPosts.map((item) => item.media_url);
-
-        // Разбиваем URL-адреса на группы по 10 и отправляем пользователю
-        const chunks = chunkArray(mediaUrls, 10);
-        for (let chunk of chunks) {
-            await sendMedia(bot, chatId, chunk);
+        // Если есть следующая страница, обновляем URL для следующих постов
+        if (response.data.paging && response.data.paging.next) {
+            nextInstaPostsUrl = response.data.paging.next;
+        } else {
+            nextInstaPostsUrl = null;
         }
 
+        // Отправляем первые 10 медиафайлов
+        const firstMediaUrls = allMediaUrls.slice(0, 10);
+        await sendMedia(bot, chatId, firstMediaUrls);
 
-        await bot.sendMessage(chatId, 'Больше украшений по выбранной категории Вы найдете на моей странице в Instagram',{disable_notification: true});
-        setTimeout(async () => {
-            await bot.sendMessage(chatId, 'Помните, что мода - это отличный способ показать ваше внутреннее "я" миру. Будьте себе верны и не бойтесь выделяться. С нами вы сможете создать уникальные образы, которые будут олицетворять вашу индивидуальность.', {disable_notification: true})
-        }, 3000)
-        await bot.sendMessage(followersChanal, `@${globalUsername} смотрит: ${hashtag}`,{disable_notification: true});
+        // Удаляем первые 10 элементов из массива
+        allMediaUrls.splice(0, 10);
+        console.log(`осталось:${allMediaUrls.length}`)
+
+        if (nextInstaPostsUrl) {
+            // Если есть следующая страница, добавляем кнопку "Ещё 10 постов"
+            await bot.sendMessage(chatId, "👇Здесь ещё 10 постов👇", {
+                disable_notification: true,
+                reply_markup: {
+                    inline_keyboard: [
+                        [{text: "Ещё 10 постов", callback_data: 'get_next_posts'}]
+                    ]
+                }
+            });
+        }
+        setTimeout(async ()=>{ await cleaningArray(allMediaUrls)
+        },2 * 60 * 60 * 1000);
     } catch (e) {
-        console.log(e.message);
-        await bot.sendMessage(followersChanal, `У @${globalUsername} не получилось посмотреть категорию ${hashtag}`,{disable_notification: true})
-        await bot.sendMessage(chatId, "Упс... Instagram, в отличии от меня, не хочет работать. ️️️️️\n Попробуйте ещё раз!😉️️");
+        await bot.sendMessage(chatId, "Упс... Instagram, в отличии от меня, не хочет работать. \n️️️️️ Попробуй ещё раз!😉️️");
+        await bot.sendMessage(followersChannel, `У @${globalUsername} не получилось посмотреть посты, ошибка:${e.message}`)
+        console.log(`в фукции handleGetPosts ошибка:${e.message}`);
     }
 }
 
-// Использование функции для каждой категории
-async function sendRingPosts(bot, chatId) {
-    await fetchAndSendCategoryPosts(bot, chatId, '#кольцо');
+//Функция обработки callback === GET_NEXT_POSTS
+async function handleGetNextPosts(chatId) {
+    try {
+        await bot.sendChatAction(chatId, 'upload_photo')
+        // Если массив пуст, получите новые медиафайлы из Instagram
+        if (allMediaUrls.length === 0) {
+            const response = await axios.get(nextInstaPostsUrl);
+            const {data} = response.data;
+
+            // Если это карусель, добавляем все изображения из карусели
+            for (let item of data) {
+                if (item.media_type === 'CAROUSEL_ALBUM' && item.children && item.children.data.length > 0) {
+                    allMediaUrls.push(...item.children.data.map(child => child.media_url));
+                } else {
+                    // Иначе добавляем изображение
+                    allMediaUrls.push(item.media_url);
+                }
+            }
+
+
+            console.log(`было:${allMediaUrls.length}`);
+
+            // Если есть следующая страница, обновляем URL для следующих постов
+            if (response.data.paging && response.data.paging.next) {
+                nextInstaPostsUrl = response.data.paging.next;
+            } else {
+                nextInstaPostsUrl = null;
+            }
+        }
+
+        if (allMediaUrls.length > 0) {
+            // Отправляем первые 10 медиафайлов
+            const firstMediaUrls = allMediaUrls.slice(0, 10);
+            await sendMedia(bot, chatId, firstMediaUrls);
+
+            // Удаляем первые 10 элементов из массива
+            allMediaUrls.splice(0, 10);
+            console.log(`осталось:${allMediaUrls.length}`)
+            if (allMediaUrls.length === 0) {
+                // Если массив полностью пуст, выполните операцию очистки массива
+                allMediaUrls.length = 0;
+            }
+
+            if (nextInstaPostsUrl) {
+                // Если есть следующая страница, добавляем кнопку "Ещё 10 постов"
+                await bot.sendMessage(chatId, "Если ты нашла идеальное украшение для себя, просто отправь мне фото этого украшения @cherry_story.\n Буду рада предоставить дополнительную информацию.🌸", {
+                    disable_notification: true,
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{text: "Ещё 10 постов", callback_data: 'get_next_posts'}]
+                        ]
+                    }
+                });
+            }
+        } else {
+            // Если массив все равно пуст, сообщите пользователю, что больше медиафайлов нет
+            await bot.sendMessage(chatId, "Ты просмотрела все посты.");
+        }
+        setTimeout(async ()=>{ await cleaningArray(allMediaUrls)
+        },2 * 60 * 60 * 1000);
+    } catch (e) {
+        await bot.sendMessage(chatId, "Упс... Instagram, в отличии от меня, не хочет работать. \n️️️️️ Попробуй ещё раз!😉️️");
+        await bot.sendMessage(followersChannel, `У @${globalUsername} не получилось посмотреть следующие посты, ошибка:${e.message}`)
+        console.log(`в фукции handleGetNextPosts ошибка:${e.message}`);
+    }
 }
 
-async function sendEarringsPosts(bot, chatId) {
-    await fetchAndSendCategoryPosts(bot, chatId, '#серьги');
+//Функция для отправки медиафайлов по категории из CATEGORY_MAP в чат
+async function handleCategory(chatId, hashtag) {
+    try {
+        await bot.sendChatAction(chatId, 'upload_photo')
+
+        // Очищаем массив перед добавлением медиафайлов из новой категории
+        allMediaCategoryUrls = [];
+
+        // Отправляем запрос на Instagram API
+        const response = await axios.get(instaPosts);
+        const {data} = response.data;
+
+        // Фильтруем посты по хэштегу
+        for (let item of data) {
+            if (item.caption && item.caption.toLowerCase().includes(hashtag)) {
+
+                // Если это карусель, добавляем все изображения из карусели
+                if (item.media_type === 'CAROUSEL_ALBUM' && item.children && item.children.data.length > 0) {
+                    allMediaCategoryUrls.push(...item.children.data.map(child => child.media_url));
+                } else {
+
+                    // Иначе добавляем изображение
+                    allMediaCategoryUrls.push(item.media_url);
+
+                }
+            }
+        }
+
+        console.log(`${hashtag} было: ${allMediaCategoryUrls.length}`);
+
+        // Если есть следующая страница, обновляем URL для следующих постов
+        if (response.data.paging && response.data.paging.next) {
+            nextCategoryPostsUrl = response.data.paging.next;
+        } else {
+            nextCategoryPostsUrl = null;
+        }
+
+        // Отправляем первые 10 медиафайлов
+        const firstMediaUrls = allMediaCategoryUrls.slice(0, 10);
+        await sendMedia(bot, chatId, firstMediaUrls);
+
+        // Удаляем первые 10 элементов из массива
+        allMediaCategoryUrls.splice(0, 10);
+        console.log(`${hashtag} осталось: ${allMediaCategoryUrls.length}`);
+
+        if (nextCategoryPostsUrl) {
+            // Если есть следующая страница, добавляем кнопку "Ещё 10 постов"
+            await bot.sendMessage(chatId, "👇Ещё 10 постов из этой категории👇", {
+                disable_notification: true,
+                reply_markup: {
+                    inline_keyboard: [
+                        [{text: 'Ещё 10 постов', callback_data: 'get_next_category_posts'}]
+                    ]
+                }
+            });
+        }
+        setTimeout(async () => {
+            await sendQuotes(chatId,hashtag)
+        }, 3000)
+        setTimeout(async ()=>{ await cleaningArray(allMediaCategoryUrls)
+        }, 2 * 60 * 20 * 1000);
+        await bot.sendMessage(followersChannel, `@${globalUsername} смотрит категорию: ${hashtag}`,{disable_notification: true});
+    } catch (e) {
+        await bot.sendMessage(chatId, "Упс... Instagram, в отличии от меня, не хочет работать. ️️️️️\n Попробуй ещё раз!😉️️");
+        await bot.sendMessage(followersChannel, `У @${globalUsername} не получилось посмотреть категорию ${hashtag}, ошибка:${e.message}`)
+        console.log(`в фукции handleCategory ошибка:${e.message}`);
+    }
 }
 
-async function sendChokerPosts(bot, chatId) {
-    await fetchAndSendCategoryPosts(bot, chatId, '#чокер');
+//Функция обработки callback === GET_NEXT_CATEGORY_POSTS
+async function handleNextCategoryPosts(chatId, hashtag) {
+    try {
+        await bot.sendChatAction(chatId, 'upload_photo')
+        if (allMediaCategoryUrls.length === 0) {
+            // Если массив пуст, получите новые медиафайлы из Instagram
+            const response = await axios.get(nextCategoryPostsUrl);
+            const {data} = response.data;
+
+            for (let item of data) {
+                // Фильтруем медиафайлы по хэштегу
+                if (item.caption && item.caption.toLowerCase().includes(hashtag)) {
+                    // Если это карусель, добавляем все изображения из карусели
+                    if (item.media_type === 'CAROUSEL_ALBUM' && item.children && item.children.data.length > 0) {
+                        allMediaCategoryUrls.push(...item.children.data.map(child => child.media_url));
+                    } else {
+                        // Иначе добавляем изображение
+                        allMediaCategoryUrls.push(item.media_url);
+                    }
+                }
+            }
+            console.log(`${hashtag} было:${allMediaCategoryUrls.length}`);
+
+            // Если есть следующая страница, обновляем URL для следующих постов
+            if (response.data.paging && response.data.paging.next) {
+                nextCategoryPostsUrl = response.data.paging.next;
+            } else {
+                nextCategoryPostsUrl = null;
+                allMediaCategoryUrls = [];
+            }
+        }
+        if (allMediaCategoryUrls.length > 0) {
+            // Отправляем первые 10 медиафайлов
+            const firstMediaUrls = allMediaCategoryUrls.slice(0, 10);
+            await sendMedia(bot, chatId, firstMediaUrls);
+
+            // Удаляем отправленные медиафайлы из массива
+            allMediaCategoryUrls.splice(0, 10);
+            console.log(`${hashtag} осталось:${allMediaCategoryUrls.length}`)
+            if (nextCategoryPostsUrl) {
+                // Если есть следующая страница, добавляем кнопку "Ещё 10 постов"
+                await bot.sendMessage(chatId, "Если ты нашла идеальное украшение для себя, просто отправь мне фото этого украшения @cherry_story. Буду рада предоставить дополнительную информацию 🌸", {
+                    disable_notification: true,
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{text: "Ещё 10 постов по этой категории", callback_data: 'get_next_category_posts'}]
+                        ]
+                    }
+                });
+            }
+        } else {
+            // Если массив все равно пуст, сообщите пользователю, что больше медиафайлов нет
+            await bot.sendMessage(chatId, "Больше нет постов по выбранной категории.");
+        }
+        setTimeout(async ()=>{ await cleaningArray(allMediaCategoryUrls)
+        },2 * 60 * 60 * 1000);
+        await bot.sendMessage(followersChannel, `@${globalUsername} смотрит следующие посты по категории: ${hashtag}`,{disable_notification: true});
+    } catch (e) {
+        await bot.sendMessage(chatId, "Упс... Instagram, в отличии от меня, не хочет работать. \n️️️️️ Попробуй ещё раз!😉️️");
+        await bot.sendMessage(followersChannel, `У @${globalUsername} не получилось посмотреть следующие посты по категории ${hashtag}, ошибка:${e.message}`)
+        console.log(`в фукции handleNextCategoryPosts ошибка:${e.message}`);
+    }
 }
 
-async function sendNecklacePosts(bot, chatId) {
-    await fetchAndSendCategoryPosts(bot, chatId, '#колье');
+//Функция для отправки медиафайлов в чат
+async function sendMedia(bot, chatId, mediaUrls) {
+    try {
+        const photoMedia = [];
+        const videoMedia = [];
+
+        for (let url of mediaUrls) {
+            const mediaType = url.includes('.mp4') ? 'video' : 'photo';
+
+            if (mediaType === 'photo') {
+                const mediaObject = {
+                    type: 'photo',
+                    media: url
+                };
+                photoMedia.push(mediaObject);
+            } else {
+                const objectVideo = {
+                    type: 'video',
+                    media: url
+                };
+                videoMedia.push(objectVideo)
+            }
+        }
+        // Проверка на пустые массивы и отправка соответствующих массивов
+        if (photoMedia.length === 0 && videoMedia.length > 0) {
+            await bot.sendMediaGroup(chatId, videoMedia, {disable_notification: true});
+        } else if (photoMedia.length > 0 && videoMedia.length === 0) {
+            await bot.sendMediaGroup(chatId, photoMedia, {disable_notification: true});
+        } else if (photoMedia.length > 0 && videoMedia.length > 0) {
+            // Если оба массива не пусты, отправляем их оба
+            await bot.sendMediaGroup(chatId, photoMedia, {disable_notification: true});
+            await bot.sendMediaGroup(chatId, videoMedia, {disable_notification: true});
+        }
+    } catch (e) {
+        await bot.sendMessage(followersChannel, `@${globalUsername} не отправились медиа, ошибка:${e.message}`)
+        console.log(`в фукции sendMedia ошибка:${e.message}`);
+    }
 }
 
-async function sendChainPosts(bot, chatId) {
-    await fetchAndSendCategoryPosts(bot, chatId, '#цепь');
+//Функция для отправки цитат
+async function sendQuotes(chatId, hashtag) {
+    try {
+        if (hashtag === 'кольцо') {
+            await bot.sendMessage(chatId, '"Самое важное в моде - это доверие себе. Если вы не верите в себя, никто другой не поверит."(Tom Ford)', {disable_notification: true});
+        } else if (hashtag === 'серьги') {
+            await bot.sendMessage(chatId, '"Женщина никогда не может иметь слишком много украшений. (Coco Chanel)', {disable_notification: true});
+        } else if (hashtag === 'чокер') {
+            await bot.sendMessage(chatId, '"Мода - это чисто внешняя вещь, стиль - это нечто более глубокое." (Karl Lagerfeld)', {disable_notification: true});
+        } else if (hashtag === 'колье') {
+            await bot.sendMessage(chatId, '"То, что вы носите, — это то, как вы представляете себя миру, особенно сегодня, когда человеческие контакты проходят так быстро. Мода — это мгновенный язык»" (Miuccia Prada)', {disable_notification: true});
+        } else if (hashtag === 'цепь') {
+            await bot.sendMessage(chatId, '"Мода - это кажущаяся реальность, а стиль - это индивидуальность." (Alexander McQueen)', {disable_notification: true});
+        } else if (hashtag === 'браслет') {
+            await bot.sendMessage(chatId, '"Основное правило великой моды: качество вещей никогда не выходит из моды." (Christian Dior)', {disable_notification: true});
+        } else {
+            await bot.sendMessage(chatId, '"Мода приходит и уходит, но стиль вечен." (Yves Saint Laurent)', {disable_notification: true});
+        }
+    } catch (e) {
+        await bot.sendMessage(followersChannel, `@${globalUsername} не отправились цитаты, ошибка:${e.message}`)
+        console.log(`в фукции sendQuotes ошибка:${e.message}`);
+    }
 }
 
-async function sendBraceletPosts(bot, chatId) {
-    await fetchAndSendCategoryPosts(bot, chatId, '#браслет');
+//Функция очистки массивов
+async function cleaningArray(){
+    try{
+        allMediaUrls =  [];
+        allMediaCategoryUrls = [];
+    } catch (e) {
+        await bot.sendMessage(followersChannel, `@${globalUsername} не очистились массивы с медиа-файлами, ошибка:${e.message}`)
+        console.log(`в фукции cleaningArray ошибка:${e.message}`);
+    }
 }
-
-async function sendAncletPosts(bot, chatId) {
-    await fetchAndSendCategoryPosts(bot, chatId, '#анклет');
-}
-
-(async () => {
-    await checkAndRefreshTokenIfNeeded();
-})();
