@@ -104,6 +104,9 @@ bot.on('message', async (msg) => {
             default:
                 // await bot.forwardMessage(myId, chatId, messageId);
                 await bot.sendMessage(chatId, "Я всего лишь бот и знаю только команды.😔️️️️️️\nПо всем вопросам пиши моей госпоже @cherry_story\n Вообще, Юля мне не госпожа, но ей нравится, когда я её так называю.", {disable_notification: true});
+                setTimeout(async () => {
+                    await bot.sendMessage(chatId, ` Раздел "Меню" ↙️ содержит список всех доступных для использования команд.`, {disable_notification: true})
+                }, 3000);
                 break;
         }
     } catch (e) {

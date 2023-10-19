@@ -144,13 +144,12 @@ async function handlePostsCommand(bot, msg) {
 
 }
 
-async function handleQuantityUsers (bot, msg, count) {
-    const username = msg.from.username;
+async function handleQuantityUsers (bot, count, username) {
     try{
         console.log(count)
         await bot.sendMessage(followersChannel, `Количество пользователей: ${count}`,{disable_notification: true})
     } catch (e) {
-        await bot.sendMessage(followersChannel, `У @${username} в обработке команды /how many users ошибка:${e.message}`);
+        await bot.sendMessage(followersChannel, `У @${username} в обработке команды /how many users ошибка:${e.message}`,{disable_notification: true});
         console.log(`в обработке команды /how many users ошибка:${e.message}`)
     }
 }
