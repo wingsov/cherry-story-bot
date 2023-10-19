@@ -9,7 +9,7 @@ const followersChannel = process.env.FOLLOWERS_CHANNEL;
 const photo = process.env.START_PHOTO;
 
 //Username для отправки в чат пользователей
-let globalUsername = '';
+//let globalUsername = '';
 
 
 
@@ -20,11 +20,10 @@ const hello = "Привет, милая!\n" +
 
 
 // Обработка команды /start
-async function handleStartCommand(bot, msg, count) {
+async function handleStartCommand(bot, msg, count, ) {
     const chatId = msg.chat.id;
     const username = msg.from.username;
     const messageId = msg.message_id;
-    globalUsername = username
     try {
         await bot.sendPhoto(chatId, photo, {
             caption: hello,
@@ -39,14 +38,14 @@ async function handleStartCommand(bot, msg, count) {
         });
         // Удаление сообщения с командой /start
         await bot.deleteMessage(chatId, messageId);
-        await bot.sendMessage(followersChannel, `@${globalUsername} начал пользоваться ботом`, {disable_notification: true});
+        await bot.sendMessage(followersChannel, `@${username} начал пользоваться ботом`, {disable_notification: true});
         count++;
         // Отправка дополнительной информации
         setTimeout(async () => {
             await bot.sendMessage(chatId, ` Раздел "Меню" ↙️ содержит список всех доступных для использования команд.`, {disable_notification: true})
         }, 3000);
     } catch (e) {
-        await bot.sendMessage(followersChannel, `У @${globalUsername} в обработке команды /start ошибка:${e.message}`);
+        await bot.sendMessage(followersChannel, `У @${username} в обработке команды /start ошибка:${e.message}`);
         console.log(`в обработке команды /start ошибка:${e.message}`);
     }
 }
@@ -55,10 +54,10 @@ async function handleStartCommand(bot, msg, count) {
 async function handleCategoriesCommand(bot, msg) {
     const chatId = msg.chat.id;
     const messageId = msg.message_id;
-
+    const username = msg.from.username;
     try {
         // Отправляем сообщение с категориями украшений
-        await bot.sendMessage(chatId, `${globalUsername},\nкатегории украшений, изготовленных с заботой и любовью для вас.💕💫`, {
+        await bot.sendMessage(chatId, `Вот категории украшений, изготовленных с заботой и любовью для тебя.💕💫`, {
             disable_notification: true,
             reply_markup: {
                 inline_keyboard: [
@@ -73,7 +72,7 @@ async function handleCategoriesCommand(bot, msg) {
         // Удаление сообщения с командой /categories
         await bot.deleteMessage(chatId, messageId);
     } catch (e) {
-        await bot.sendMessage(followersChannel, `У @${globalUsername} в обработке команды /categories ошибка:${e.message}`);
+        await bot.sendMessage(followersChannel, `У @${username} в обработке команды /categories ошибка:${e.message}`);
         console.log(`в обработке команды /categories ошибка:${e.message}`);
     }
 }
@@ -82,11 +81,12 @@ async function handleCategoriesCommand(bot, msg) {
 async function handlePayCommand(bot, msg) {
     const chatId = msg.chat.id;
     const messageId = msg.message_id;
+    const username = msg.from.username;
     try {
         await bot.sendMessage(chatId, 'Получить информацию о наличии товара, вариантах доставки и оплаты можно, написав мне @cherry_story', {disable_notification: true})
         await bot.deleteMessage(chatId, messageId)
     } catch (e) {
-        await bot.sendMessage(followersChannel, `У @${globalUsername} в обработке команды /pay ошибка:${e.message}`);
+        await bot.sendMessage(followersChannel, `У @${username} в обработке команды /pay ошибка:${e.message}`);
         console.log(`в обработке команды /pay ошибка:${e.message}`)
     }
 }
@@ -95,6 +95,7 @@ async function handlePayCommand(bot, msg) {
 async function handleCareCommand(bot, msg) {
     const chatId = msg.chat.id;
     const messageId = msg.message_id;
+    const username = msg.from.username;
     try {
         await bot.sendMessage(chatId, 'Храни украшения в индивидуальной упаковке, раздельно друг от друга.🎁\n' +
             '\n' +
@@ -115,7 +116,7 @@ async function handleCareCommand(bot, msg) {
         }, 7000)
         await bot.deleteMessage(chatId, messageId)
     } catch (e) {
-        await bot.sendMessage(followersChannel, `У @${globalUsername} в обработке команды /care ошибка:${e.message}`);
+        await bot.sendMessage(followersChannel, `У @${username} в обработке команды /care ошибка:${e.message}`);
         console.log(`в обработке команды /care ошибка:${e.message}`)
     }
 }
@@ -124,6 +125,7 @@ async function handleCareCommand(bot, msg) {
 async function handlePostsCommand(bot, msg) {
     const chatId = msg.chat.id;
     const messageId = msg.message_id;
+    const username = msg.from.username;
     try {
         await bot.sendMessage(chatId, "Этот бот может отправить фото и видео из моих постов в Instagram, без использования VPN", {
             disable_notification: true,
@@ -133,22 +135,22 @@ async function handlePostsCommand(bot, msg) {
                 ]
             }
         });
-        await bot.sendMessage(followersChannel, `@${globalUsername} хочет посмотреть посты из Instagram`,{disable_notification: true})
         await bot.deleteMessage(chatId, messageId)
     } catch (e) {
-        await bot.sendMessage(followersChannel, `У @${globalUsername} в обработке команды /posts ошибка:${e.message}`);
+        await bot.sendMessage(followersChannel, `У @${username} в обработке команды /posts ошибка:${e.message}`);
         console.log(`в обработке команды /posts ошибка:${e.message}`);
 
     }
 
 }
 
-async function handleQuantityUsers (bot, count) {
+async function handleQuantityUsers (bot, msg, count) {
+    const username = msg.from.username;
     try{
         console.log(count)
         await bot.sendMessage(followersChannel, `Количество пользователей: ${count}`,{disable_notification: true})
     } catch (e) {
-        await bot.sendMessage(followersChannel, `У @${globalUsername} в обработке команды /how many users ошибка:${e.message}`);
+        await bot.sendMessage(followersChannel, `У @${username} в обработке команды /how many users ошибка:${e.message}`);
         console.log(`в обработке команды /how many users ошибка:${e.message}`)
     }
 }

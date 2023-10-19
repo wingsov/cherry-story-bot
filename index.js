@@ -56,7 +56,7 @@ let nextInstaPostsUrl = instaPostsLimit10;
 let nextCategoryPostsUrl = instaPosts;
 
 //Username для отправки в чат пользователей
-let globalUsername = '';
+//let globalUsername = '';
 // callbackData соответствующая нажатой кнопке с категорией
 let buttonCallbackData = '';
 
@@ -78,7 +78,6 @@ bot.on('message', async (msg) => {
             case '/start':
                 await handleStartCommand(bot, msg, chatId);
                 await checkAndRefreshTokenIfNeeded(bot, msg);
-                globalUsername = username;
                 count++;
                 await reminderWinter(bot, msg);
                 await happyNY(bot, msg);
@@ -109,7 +108,7 @@ bot.on('message', async (msg) => {
         }
     } catch (e) {
         console.log(`в обработке message ошибка:${e.message}`);
-        await bot.sendMessage(followersChannel, `У @${globalUsername} не работает обработка commands ошибка:${e.message}`)
+        await bot.sendMessage(followersChannel, `У @${username} не работает обработка commands ошибка:${e.message}`)
         await bot.sendMessage(chatId, 'Упс! Что-то пошло не так. Пожалуйста, попробуйте еще раз.');
     }
 });
@@ -118,34 +117,35 @@ bot.on('message', async (msg) => {
 bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     const callbackData = query.data;
+    const username = query.message.chat.username;
 
     try {
         switch (callbackData) {
             case GET_POSTS:
-                await handleGetPosts(chatId);
+                await handleGetPosts(chatId, username);
                 break;
             case GET_NEXT_POSTS:
-                await handleGetNextPosts(chatId);
+                await handleGetNextPosts(chatId, username);
                 break;
             case GET_NEXT_CATEGORY_POSTS:
-                await handleNextCategoryPosts(chatId, buttonCallbackData)
+                await handleNextCategoryPosts(chatId, buttonCallbackData, username)
                 break;
             default:
                 if (callbackData in CATEGORY_MAP) {
-                    await handleCategory(chatId, CATEGORY_MAP[callbackData]);
+                    await handleCategory(chatId, CATEGORY_MAP[callbackData], username);
                     buttonCallbackData = CATEGORY_MAP[callbackData];
                 }
                 break;
         }
     } catch (e) {
         console.error(`в обработке callback_query ошибка:${e.message}`);
-        await bot.sendMessage(followersChannel, `У @${globalUsername} не работает обработка commands ошибка:${e.message}`);
+        await bot.sendMessage(followersChannel, `У @${username} не работает обработка commands ошибка:${e.message}`);
         await bot.sendMessage(chatId, 'Упс! Что-то пошло не так. Пожалуйста, попробуйте еще раз.');
     }
 });
 
 //Функция обработки callback === GET_POSTS
-async function handleGetPosts(chatId) {
+async function handleGetPosts(chatId, username) {
     try {
         await bot.sendChatAction(chatId, 'upload_photo')
         const response = await axios.get(instaPostsLimit10);
@@ -188,17 +188,18 @@ async function handleGetPosts(chatId) {
                 }
             });
         }
+        await bot.sendMessage(followersChannel, `@${username} смотрит все посты из Instagram`,{disable_notification: true})
         setTimeout(async ()=>{ await cleaningArray(allMediaUrls)
         },2 * 60 * 60 * 1000);
     } catch (e) {
         await bot.sendMessage(chatId, "Упс... Instagram, в отличии от меня, не хочет работать. \n️️️️️ Попробуй ещё раз!😉️️");
-        await bot.sendMessage(followersChannel, `У @${globalUsername} не получилось посмотреть посты, ошибка:${e.message}`)
+        await bot.sendMessage(followersChannel, `У @${username} не получилось посмотреть посты, ошибка:${e.message}`)
         console.log(`в фукции handleGetPosts ошибка:${e.message}`);
     }
 }
 
 //Функция обработки callback === GET_NEXT_POSTS
-async function handleGetNextPosts(chatId) {
+async function handleGetNextPosts(chatId, username) {
     try {
         await bot.sendChatAction(chatId, 'upload_photo')
         // Если массив пуст, получите новые медиафайлы из Instagram
@@ -215,7 +216,6 @@ async function handleGetNextPosts(chatId) {
                     allMediaUrls.push(item.media_url);
                 }
             }
-
 
             console.log(`было:${allMediaUrls.length}`);
 
@@ -253,19 +253,20 @@ async function handleGetNextPosts(chatId) {
             }
         } else {
             // Если массив все равно пуст, сообщите пользователю, что больше медиафайлов нет
-            await bot.sendMessage(chatId, "Ты просмотрела все посты.");
+            await bot.sendMessage(chatId, "Ты просмотрела все посты.",{disable_notification: true});
+            await bot.sendMessage(followersChannel, `@${username} посмотрел все посты из Instagram`,{disable_notification: true})
         }
         setTimeout(async ()=>{ await cleaningArray(allMediaUrls)
         },2 * 60 * 60 * 1000);
     } catch (e) {
         await bot.sendMessage(chatId, "Упс... Instagram, в отличии от меня, не хочет работать. \n️️️️️ Попробуй ещё раз!😉️️");
-        await bot.sendMessage(followersChannel, `У @${globalUsername} не получилось посмотреть следующие посты, ошибка:${e.message}`)
+        await bot.sendMessage(followersChannel, `У @${username} не получилось посмотреть следующие посты, ошибка:${e.message}`)
         console.log(`в фукции handleGetNextPosts ошибка:${e.message}`);
     }
 }
 
 //Функция для отправки медиафайлов по категории из CATEGORY_MAP в чат
-async function handleCategory(chatId, hashtag) {
+async function handleCategory(chatId, hashtag, username) {
     try {
         await bot.sendChatAction(chatId, 'upload_photo')
 
@@ -325,16 +326,16 @@ async function handleCategory(chatId, hashtag) {
         }, 3000)
         setTimeout(async ()=>{ await cleaningArray(allMediaCategoryUrls)
         }, 2 * 60 * 20 * 1000);
-        await bot.sendMessage(followersChannel, `@${globalUsername} смотрит категорию: ${hashtag}`,{disable_notification: true});
+        await bot.sendMessage(followersChannel, `@${username} смотрит категорию: ${hashtag}`,{disable_notification: true});
     } catch (e) {
         await bot.sendMessage(chatId, "Упс... Instagram, в отличии от меня, не хочет работать. ️️️️️\n Попробуй ещё раз!😉️️");
-        await bot.sendMessage(followersChannel, `У @${globalUsername} не получилось посмотреть категорию ${hashtag}, ошибка:${e.message}`)
+        await bot.sendMessage(followersChannel, `У @${username} не получилось посмотреть категорию ${hashtag}, ошибка:${e.message}`)
         console.log(`в фукции handleCategory ошибка:${e.message}`);
     }
 }
 
 //Функция обработки callback === GET_NEXT_CATEGORY_POSTS
-async function handleNextCategoryPosts(chatId, hashtag) {
+async function handleNextCategoryPosts(chatId, hashtag, username) {
     try {
         await bot.sendChatAction(chatId, 'upload_photo')
         if (allMediaCategoryUrls.length === 0) {
@@ -385,20 +386,21 @@ async function handleNextCategoryPosts(chatId, hashtag) {
             }
         } else {
             // Если массив все равно пуст, сообщите пользователю, что больше медиафайлов нет
-            await bot.sendMessage(chatId, "Больше нет постов по выбранной категории.");
+            await bot.sendMessage(chatId, "Больше нет постов по выбранной категории.",{disable_notification: true});
+            await bot.sendMessage(followersChannel, `@${username} посмотрел все посты из категории: ${hashtag}`,{disable_notification: true})
         }
         setTimeout(async ()=>{ await cleaningArray(allMediaCategoryUrls)
         },2 * 60 * 60 * 1000);
-        await bot.sendMessage(followersChannel, `@${globalUsername} смотрит следующие посты по категории: ${hashtag}`,{disable_notification: true});
+        await bot.sendMessage(followersChannel, `@${username} смотрит следующие посты по категории: ${hashtag}`,{disable_notification: true});
     } catch (e) {
         await bot.sendMessage(chatId, "Упс... Instagram, в отличии от меня, не хочет работать. \n️️️️️ Попробуй ещё раз!😉️️");
-        await bot.sendMessage(followersChannel, `У @${globalUsername} не получилось посмотреть следующие посты по категории ${hashtag}, ошибка:${e.message}`)
+        await bot.sendMessage(followersChannel, `У @${username} не получилось посмотреть следующие посты по категории ${hashtag}, ошибка:${e.message}`)
         console.log(`в фукции handleNextCategoryPosts ошибка:${e.message}`);
     }
 }
 
 //Функция для отправки медиафайлов в чат
-async function sendMedia(bot, chatId, mediaUrls) {
+async function sendMedia(bot, chatId, mediaUrls, username) {
     try {
         const photoMedia = [];
         const videoMedia = [];
@@ -431,13 +433,13 @@ async function sendMedia(bot, chatId, mediaUrls) {
             await bot.sendMediaGroup(chatId, videoMedia, {disable_notification: true});
         }
     } catch (e) {
-        await bot.sendMessage(followersChannel, `@${globalUsername} не отправились медиа, ошибка:${e.message}`)
+        await bot.sendMessage(followersChannel, `@${username} не отправились медиа, ошибка:${e.message}`)
         console.log(`в фукции sendMedia ошибка:${e.message}`);
     }
 }
 
 //Функция для отправки цитат
-async function sendQuotes(chatId, hashtag) {
+async function sendQuotes(chatId, hashtag, username) {
     try {
         if (hashtag === 'кольцо') {
             await bot.sendMessage(chatId, '"Самое важное в моде - это доверие себе. Если вы не верите в себя, никто другой не поверит."(Tom Ford)', {disable_notification: true});
@@ -455,18 +457,18 @@ async function sendQuotes(chatId, hashtag) {
             await bot.sendMessage(chatId, '"Мода приходит и уходит, но стиль вечен." (Yves Saint Laurent)', {disable_notification: true});
         }
     } catch (e) {
-        await bot.sendMessage(followersChannel, `@${globalUsername} не отправились цитаты, ошибка:${e.message}`)
+        await bot.sendMessage(followersChannel, `@${username} не отправились цитаты, ошибка:${e.message}`)
         console.log(`в фукции sendQuotes ошибка:${e.message}`);
     }
 }
 
 //Функция очистки массивов
-async function cleaningArray(){
+async function cleaningArray(username){
     try{
         allMediaUrls =  [];
         allMediaCategoryUrls = [];
     } catch (e) {
-        await bot.sendMessage(followersChannel, `@${globalUsername} не очистились массивы с медиа-файлами, ошибка:${e.message}`)
+        await bot.sendMessage(followersChannel, `@${username} не очистились массивы с медиа-файлами, ошибка:${e.message}`)
         console.log(`в фукции cleaningArray ошибка:${e.message}`);
     }
 }

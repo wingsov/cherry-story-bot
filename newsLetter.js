@@ -25,7 +25,7 @@ async function reminderWinter (bot, msg){
             console.log(`отправил сообщение ${username} в 18:30 02.12`);
         })
     } catch (e) {
-        //await bot.sendMessage(followersChannel, `@${username} не отправилось напоминание`,{disable_notification: true});
+        await bot.sendMessage(followersChannel, `@${username} не отправилось напоминание`,{disable_notification: true});
         console.log(`ошибка в отправлении reminder ${e.message}`)
     }
 }
